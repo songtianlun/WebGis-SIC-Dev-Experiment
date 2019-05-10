@@ -1,6 +1,8 @@
 # WebGis-SIC-Dev-Experiment
 
 >A WebGis component development experiment developed using SuperMap iClient.
+>
+>You may be able to preview the web interface through this URL([<https://songtianlun.github.io/WebGis-SIC-Dev-Experiment/>](<https://songtianlun.github.io/WebGis-SIC-Dev-Experiment/>)), but you may need to modify the iServe server host address to load it out of the map.
 
 ## Surroundings
 
