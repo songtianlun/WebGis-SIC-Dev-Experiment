@@ -10,7 +10,7 @@ OS: win 10 home / win 7 enterprise
 
 SuperMap iClient Version: V8.1.0
 
-UI:[bootstrap](https://getbootstrap.com/)
+UI: [bootstrap](https://getbootstrap.com/)
 
 
 ## Features
