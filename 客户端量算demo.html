@@ -1,0 +1,207 @@
+<!DOCTYPE>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>客户端距离量算</title>
+    <script src='libs/SuperMap.Include.js'></script>
+    <script type="text/javascript">
+        var map, layer, linewordvectorLayer,control,select,
+            host = "http://114.116.67.239:8090",
+            url="http://supermap.com.cn:8090/iserver/services/map-changchun/rest/maps/长春市区图";
+        function init(){
+            map = new SuperMap.Map("map",{controls: [
+                    new SuperMap.Control.ScaleLine(),
+                    new SuperMap.Control.Zoom(),
+                    new SuperMap.Control.Navigation({
+                        dragPanOptions: {
+                            enableKinetic: true
+                        }
+                    })]
+            });
+            layer = new SuperMap.Layer.TiledDynamicRESTLayer("长春", url, {transparent: true, cacheEnabled: true}, {maxResolution:"auto"});
+            layer.events.on({"layerInitialized":addLayer});
+            //存储文字 最终线样式 删除按钮 动态绘制过程中保存的内容
+            linewordvectorLayer = new SuperMap.Layer.Vector("点和文字");
+            vectorLayerLine = new SuperMap.Layer.Vector("线");
+            vectorLayerX = new SuperMap.Layer.Vector("删除");
+            vectorLayerTmp = new SuperMap.Layer.Vector("临时");
+            //添加删除事件
+            select = new SuperMap.Control.SelectFeature(vectorLayerX, {onSelect: onFeatureSelect});
+            //激活删除事件
+            map.addControl(select);
+        }
+        //点击删除量算按钮
+        function onFeatureSelect(feature) {
+            linewordvectorLayer.removeAllFeatures();
+            vectorLayerLine.removeAllFeatures();
+            vectorLayerX.removeAllFeatures();
+            select.deactivate();
+        }
+
+        function addLayer() {
+            map.addLayers([layer,vectorLayerLine,linewordvectorLayer,vectorLayerTmp,vectorLayerX]);
+            map.setCenter(new SuperMap.LonLat(4503.62 , -3861.91), 0);
+            measureControls = {
+                //距离量算
+                line:new SuperMap.Control.Measure(
+                    SuperMap.Handler.Path, {immediate:true}
+                )
+            };
+            //监听 measure 和 measurepartial 两个事件，量算完成时触发时
+            //量算完成时触发 measure 事件，当点被添加到量算过程中时触发 measurepartial
+            for(var key in measureControls){
+                control = measureControls[key];
+                control.events.on({
+                    "measure": handleMeasure,
+                    "measurepartial": handleMeasurements
+                });
+                //添加控件到 map 上
+                map.addControl(control);
+            }
+        }
+        function addLabel() {
+            linewordvectorLayer.removeAllFeatures();
+            vectorLayerLine.removeAllFeatures();
+            vectorLayerTmp.removeAllFeatures();
+            vectorLayerX.removeAllFeatures();
+            control.activate();
+        }
+        //最终双击结束
+        function handleMeasure(event) {
+            control.deactivate();
+            vectorLayerTmp.removeAllFeatures();
+            //获取当前坐标点
+            var pointStart = new SuperMap.Geometry.Point(event.geometry.components[(event.geometry.components.length-1)].x,event.geometry.components[(event.geometry.components.length-1)].y);
+            //克隆坐标点 用于显示关闭按钮
+            var pointCopy = pointStart.clone();
+
+            //单位转换
+            var unitString = "";
+            if(event.units == "m") {
+                unitString = "米";
+            }else if(event.units == "km") {
+                unitString = "公里";
+            }else{
+                unitString = "";
+            }
+
+            var f = new SuperMap.Feature.Vector;
+            f.geometry = pointStart;
+            f.style= {label:"总长：" + event.measure.toFixed(1)+unitString,
+                fontColor:'red',
+                strokeColor: "red",
+                strokeOpacity: 1,
+                fillColor: "#ffffff",
+                labelXOffset:20,
+                labelYOffset:20,
+                pointRadius: 4};
+            //删除按钮
+            var fc = new SuperMap.Feature.Vector;
+            fc.geometry = pointCopy;
+            fc.style= {
+                externalGraphic: "./images/Error.png",
+                strokeColor: "red",
+                graphicWidth:16,
+                graphicHeight:16,
+                strokeOpacity: 1,
+                fillColor: "#ffffff",
+                graphicXOffset:10,
+                pointRadius: 4};
+            //保存之前绘制的节点用于显示其他样式
+            var points = [];
+            for(var i = 0;i < event.geometry.components.length; i++) {
+                points.push(new SuperMap.Geometry.Point(event.geometry.components[i].x, event.geometry.components[i].y));
+            }
+            var qu = new SuperMap.Geometry.LineString(points);
+            //保留线样式
+            var ff = new SuperMap.Feature.Vector;
+            ff.geometry = qu;
+            ff.style = {
+                strokeColor: "#FC854D",
+                strokeWidth: 2.5,
+                pointerEvents: "visiblePainted",
+                fillColor: "#FC854D",
+                fillOpacity: 1};
+            vectorLayerLine.addFeatures(ff);
+            linewordvectorLayer.addFeatures(f);
+            vectorLayerX.addFeatures(fc);
+
+            //激活选择要素的控件
+            select.activate();
+        }
+        //绘制过程中单机和移动事件
+        function handleMeasurements(event) {
+            //获取传入参数 event 的 geometry 信息
+            var geometry = event.geometry;
+        // <!-- //获取传入参数 event 的 type 信息（click指示的是点击事件，move指示的是移动事件） -->
+            var type=event.type;
+            //单位转换
+            var unitString = "";
+            if(event.units == "m") {
+                unitString = "米";
+            }else if(event.units == "km") {
+                unitString = "公里";
+            }else{
+                unitString = "";
+            }
+
+            if(type == 'click') {
+                //当==2时为起点
+                if(event.geometry.components.length == 2) {
+                    var pointStart = new SuperMap.Geometry.Point(event.geometry.components[(event.geometry.components.length-1)].x,event.geometry.components[0].y);
+                    var f = new SuperMap.Feature.Vector;
+                    f.geometry = pointStart;
+                    f.style= {
+                        label:'起点',
+                        fontColor:'red',
+                        strokeColor: "red",
+                        strokeOpacity: 1,
+                        fillColor: "#ffffff",
+                        labelXOffset:20,
+                        labelYOffset:20,
+                        pointRadius: 4};
+                    linewordvectorLayer.addFeatures(f);
+                }else {
+                    //单机节点
+                    var pointStart = new SuperMap.Geometry.Point(event.geometry.components[(event.geometry.components.length-1)].x,event.geometry.components[(event.geometry.components.length-1)].y);
+                    var f = new SuperMap.Feature.Vector;
+                    f.geometry = pointStart;
+                    f.style= {
+                        label: + event.measure.toFixed(1)+unitString,
+                        fontColor:'red',
+                        strokeColor: "red",
+                        strokeOpacity: 1,
+                        fillColor: "#ffffff",
+                        labelXOffset:20,
+                        labelYOffset:20,
+                        pointRadius: 4};
+                    linewordvectorLayer.addFeatures(f);
+                }
+            }else {
+                //临时显示点信息
+                vectorLayerTmp.removeAllFeatures();
+                var pointStart = new SuperMap.Geometry.Point(event.geometry.components[(event.geometry.components.length-1)].x,event.geometry.components[(event.geometry.components.length-1)].y);
+                var f = new SuperMap.Feature.Vector;
+                f.geometry = pointStart;
+                f.style= {
+                    label: + event.measure.toFixed(1)+unitString,
+                    fontColor:'red',
+                    strokeColor: "red",
+                    strokeOpacity: 1,
+                    fillColor: "#ffffff",
+                    labelXOffset:20,
+                    labelYOffset:20,
+                    pointRadius: 4};
+                vectorLayerTmp.addFeatures(f);
+            }
+        }
+    </script>
+</head>
+<body onload="init()">
+<div id="toolbar">
+    <input type="button" value="距离量算" onclick="addLabel()" />
+</div>
+<div id="map" style="position: absolute; left: 87px; right: 0px; width: 90%; height: 90%; top: 10px;" >
+</div>
+</body>
+</html>

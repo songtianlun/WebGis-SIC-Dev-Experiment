@@ -1,0 +1,155 @@
+<!DOCTYPE>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>客户端距离量算</title>
+    <script src='libs/SuperMap.Include.js'></script>
+    <script type="text/javascript">
+        var map, layer, PolygonlinewordvectorLayer,Polygoncontrol,
+            host = "http://114.116.67.239:8090",
+            url="http://supermap.com.cn:8090/iserver/services/map-changchun/rest/maps/长春市区图";
+        function init(){
+            map = new SuperMap.Map("map",{controls: [
+                    new SuperMap.Control.ScaleLine(),
+                    new SuperMap.Control.Zoom(),
+                    new SuperMap.Control.Navigation({
+                        dragPanOptions: {
+                            enableKinetic: true
+                        }
+                    })]
+            });
+            layer = new SuperMap.Layer.TiledDynamicRESTLayer("长春", url, {transparent: true, cacheEnabled: true}, {maxResolution:"auto"});
+            layer.events.on({"layerInitialized":addLayer});
+
+
+            //存储文字 最终线样式 动态绘制过程中保存的内容
+            PolygonlinewordvectorLayer = new SuperMap.Layer.Vector("面积测算-点和文字");
+            vectorLayerArea = new SuperMap.Layer.Vector("面积测算-线");
+            vectorLayerAreaTmp = new SuperMap.Layer.Vector("面积测算-临时");
+        }
+
+        function addLayer() {
+            map.addLayers([layer,vectorLayerArea,PolygonlinewordvectorLayer,vectorLayerAreaTmp]);
+            map.setCenter(new SuperMap.LonLat(4503.62 , -3861.91), 0);
+
+            measureControls = {
+                // //距离量算
+                // line:new SuperMap.Control.Measure(
+                //     SuperMap.Handler.Path, {persist:true ,immediate:true}
+                // ),
+                //面积量算
+                polygon:new SuperMap.Control.Measure(
+                    SuperMap.Handler.Polygon,{persist:true ,immediate:true}
+                )
+            };
+            //监听 measure 和 measurepartial 两个事件，量算完成时触发时
+            //量算完成时触发 measure 事件，当点被添加到量算过程中时触发 measurepartial
+            for(var key in measureControls){
+                Polygoncontrol = measureControls[key];
+                Polygoncontrol.events.on({
+                    "measure": PolygonhandleMeasure,
+                    "measurepartial": PolygonhandleMeasurements
+                });
+                //添加控件到 map 上
+                map.addControl(Polygoncontrol);
+            }
+        }
+        function addLabel() {
+            PolygonlinewordvectorLayer.removeAllFeatures();
+            vectorLayerArea.removeAllFeatures();
+            vectorLayerAreaTmp.removeAllFeatures();
+            Polygoncontrol.activate();
+        }
+
+        //最终双击结束
+        function PolygonhandleMeasure(event) {
+            console.log("双击结束！");
+            Polygoncontrol.deactivate();
+            vectorLayerAreaTmp.removeAllFeatures();
+            //获取当前坐标点
+            var pointStart = new SuperMap.Geometry.Point(event.geometry.components[(event.geometry.components.length-1)].x,event.geometry.components[(event.geometry.components.length-1)].y);
+            //克隆坐标点 用于显示关闭按钮
+            var pointCopy = pointStart.clone();
+
+            //单位转换
+            var unitString = "";
+            if(event.units == "m") {
+                unitString = "平方米";
+            }else if(event.units == "km") {
+                unitString = "平方公里";
+            }else{
+                unitString = "";
+            }
+
+            var f = new SuperMap.Feature.Vector;
+            f.geometry = pointStart;
+            f.style= {label:"总长：" + event.measure.toFixed(1)+unitString,
+                fontColor:'red',
+                strokeColor: "red",
+                strokeOpacity: 1,
+                fillColor: "#ffffff",
+                labelXOffset:20,
+                labelYOffset:20,
+                pointRadius: 4};
+            //保存之前绘制的节点用于显示其他样式
+            var points = [];
+            for(var i = 0;i < event.geometry.components.length; i++) {
+                points.push(new SuperMap.Geometry.Point(event.geometry.components[i].x, event.geometry.components[i].y));
+            }
+            var qu = new SuperMap.Geometry.Polygon(points);
+            //保留线样式
+            var ff = new SuperMap.Feature.Vector;
+            ff.geometry = qu;
+            ff.style = {
+                strokeColor: "#FC854D",
+                strokeWidth: 2.5,
+                pointerEvents: "visiblePainted",
+                fillColor: "#FC854D",
+                fillOpacity: 1};
+            vectorLayerArea.addFeatures(ff);
+            PolygonlinewordvectorLayer.addFeatures(f);
+        }
+
+        //绘制过程单击和移动事件
+        function PolygonhandleMeasurements(event) {
+            //获取传入参数 event 的 geometry 信息
+            var geometry = event.geometry;
+            // <!-- //获取传入参数 event 的 type 信息（click指示的是点击事件，move指示的是移动事件） -->
+            var type=event.type;
+            //单位转换
+            var unitString = "";
+            if(event.units == "m") {
+                unitString = "平方米";
+                console.log("平方米");
+            }else if(event.units == "km") {
+                unitString = "平方公里";
+            }else{
+                unitString = "";
+                console.log(event.units);
+            }
+                //临时显示点信息
+                vectorLayerAreaTmp.removeAllFeatures();
+                var pointStart = new SuperMap.Geometry.Point(event.geometry.components[(event.geometry.components.length-1)].x,event.geometry.components[(event.geometry.components.length-1)].y);
+                var f = new SuperMap.Feature.Vector;
+                f.geometry = pointStart;
+                f.style= {
+                    label: + event.measure.toFixed(1)+unitString,
+                    fontColor:'red',
+                    strokeColor: "red",
+                    strokeOpacity: 1,
+                    fillColor: "#ffffff",
+                    labelXOffset:20,
+                    labelYOffset:20,
+                    pointRadius: 4};
+                vectorLayerAreaTmp.addFeatures(f);
+        }
+    </script>
+</head>
+<body onload="init()">
+<div id="toolbar">
+    <input type="button" value="距离量算" onclick="addLabel()" />
+</div>
+<div id="map" style="position: absolute; left: 87px; right: 0px; width: 90%; height: 90%; top: 10px;" >
+</div>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>缓冲区查询</title>
+    <style type="text/css">
+        body{
+            margin: 0;
+            overflow: hidden;
+            background: #fff;
+        }
+        #map{
+            position: relative;
+            height: 510px;
+            border:1px solid #3473b7;
+        }
+        #toolbar {
+            position: relative;
+            padding-top: 5px;
+            padding-bottom: 10px;
+        }
+    </style>
+    <link href='./css/bootstrap.min.css' rel='stylesheet' />
+    <link href='./css/bootstrap-responsive.min.css' rel='stylesheet' />
+    <script src='./libs/SuperMap.Include.js'></script>
+    <script type="text/javascript">
+        var host = "http://114.116.67.239:8090";
+        var map, local, layer, vectorLayer, bufferdrawPoint, bufferdrawLine, bufferdrawPolygon, markerLayer,
+            bufferstyle = {
+                strokeColor: "#304DBE",
+                strokeWidth: 1,
+                pointerEvents: "visiblePainted",
+                fillColor: "#304DBE",
+                fillOpacity: 0.5,
+                pointRadius:2
+            },
+            url1=host+"/iserver/services/map-world/rest/maps/World",
+            url2=host+"/iserver/services/data-world/rest/data";
+        function init(){
+            layer = new SuperMap.Layer.TiledDynamicRESTLayer("World", url1, {transparent: true, cacheEnabled: true}, {maxResolution:"auto"});
+            layer.events.on({"layerInitialized":addLayer});
+            vectorLayer = new SuperMap.Layer.Vector("Vector Layer");
+            markerLayer = new SuperMap.Layer.Markers("Markers");
+
+            bufferdrawPoint = new SuperMap.Control.DrawFeature(vectorLayer, SuperMap.Handler.Point);
+            bufferdrawPoint.events.on({"featureadded": bufferdrawCompleted});
+
+            bufferdrawLine = new SuperMap.Control.DrawFeature(vectorLayer, SuperMap.Handler.Path);
+            bufferdrawLine.events.on({"featureadded": bufferdrawCompleted})
+
+            bufferdrawPolygon = new SuperMap.Control.DrawFeature(vectorLayer, SuperMap.Handler.Polygon);
+            bufferdrawPolygon.events.on({"featureadded": bufferdrawCompleted});
+
+            map = new SuperMap.Map("map",{controls: [
+                    new SuperMap.Control.LayerSwitcher(),
+                    new SuperMap.Control.ScaleLine(),
+                    new SuperMap.Control.Zoom(),
+                    new SuperMap.Control.Navigation({
+                        dragPanOptions: {
+                            enableKinetic: true
+                        }}),
+                    bufferdrawPoint, bufferdrawLine, bufferdrawPolygon]
+            });
+        }
+
+        function addLayer() {
+            map.addLayers([layer, vectorLayer, markerLayer]);
+            map.setCenter(new SuperMap.LonLat(0, 0), 0);
+        }
+        function bufferdrawPointGeometry() {
+            //先清除上次的显示结果
+            vectorLayer.removeAllFeatures();
+            markerLayer.clearMarkers();
+
+            bufferdrawPoint.activate();
+        }
+        function bufferdrawLineGeometry() {
+            //先清除上次的显示结果
+            vectorLayer.removeAllFeatures();
+            markerLayer.clearMarkers();
+
+            bufferdrawLine.activate();
+        }
+        function bufferdrawPolygonGeometry() {
+            //先清除上次的显示结果
+            vectorLayer.removeAllFeatures();
+            markerLayer.clearMarkers();
+
+            bufferdrawPolygon.activate();
+        }
+        function bufferdrawCompleted(drawGeometryArgs) {
+            bufferdrawPoint.deactivate();
+            bufferdrawLine.deactivate();
+            bufferdrawPolygon.deactivate();
+            var feature = new SuperMap.Feature.Vector();
+            feature.geometry = drawGeometryArgs.feature.geometry,
+                feature.style = bufferstyle;
+            vectorLayer.addFeatures(feature);
+
+            var getFeatureParameter, getFeatureService;
+            getFeatureParameter = new SuperMap.REST.GetFeaturesByBufferParameters({
+                bufferDistance: 30,
+                //attributeFilter: "SMID > 0",
+                datasetNames: ["World:Capitals"],
+                returnContent:true,
+                geometry: drawGeometryArgs.feature.geometry
+            });
+            getFeatureService = new SuperMap.REST.GetFeaturesByBufferService(url2, {
+                eventListeners: {
+                    "processCompleted": bufferprocessCompleted,
+                    "processFailed": bufferprocessFailed
+                }
+            });
+            getFeatureService.processAsync(getFeatureParameter);
+        }
+
+        function bufferprocessCompleted(getFeaturesEventArgs) {
+            var i, len, features, result = getFeaturesEventArgs.result;
+            if (result && result.features) {
+                features = result.features;
+                for (i=0, len=features.length; i<len; i++) {
+                    var point = features[i].geometry,
+                        size = new SuperMap.Size(44, 33),
+                        offset = new SuperMap.Pixel(-(size.w/2), -size.h),
+                        icon = new SuperMap.Icon("./theme/images/marker.png", size, offset);
+                    markerLayer.addMarker(new SuperMap.Marker(new SuperMap.LonLat(point.x, point.y), icon));
+                }
+            }
+        }
+
+        function bufferprocessFailed(e) {
+            alert(e.error.errorMsg);
+        }
+        function clearFeatures() {
+            vectorLayer.removeAllFeatures();
+            markerLayer.clearMarkers();
+        }
+    </script>
+</head>
+<body onload="init()">
+<div id="toolbar">
+    <input type="button" class="btn" value="点" onclick="bufferdrawPointGeometry()" />
+    <input type="button" class="btn" value="线" onclick="bufferdrawLineGeometry()" />
+    <input type="button" class="btn" value="面" onclick="bufferdrawPolygonGeometry()" />
+    <input type="button" class="btn" value="清除" onclick="clearFeatures()" />
+</div>
+<div id="map"></div>
+</body>
+</html>
